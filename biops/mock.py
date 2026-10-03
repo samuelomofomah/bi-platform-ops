@@ -11,7 +11,7 @@ import os
 from datetime import date
 from pathlib import Path
 
-from biops.base import job, result
+from biops.base import job, result, today
 
 _EPOCH = date(2026, 1, 1)
 _CONTENT = {
@@ -71,7 +71,7 @@ class MockClient:
     def usage(self, as_of: date | None = None) -> list[dict]:
         if self.platform != "tableau":
             return []
-        days = ((as_of or date.today()) - _EPOCH).days
+        days = ((as_of or today()) - _EPOCH).days
         return [
             {"platform": "tableau", "object_id": i, "name": n, "parent_id": wb, "total_views": max(days, 0) * rate}
             for i, n, wb, rate in _VIEWS

@@ -12,9 +12,11 @@ from datetime import date
 from pathlib import Path
 
 from biops import tasks
-from biops.base import job
+from biops.base import job, today
 from biops.config import Settings
 from biops.store import Store
+
+log = logging.getLogger("biops")
 
 REPORT_VIEWS = ["v_latest_health", "v_availability_7d", "v_daily_views", "v_stale_content", "v_recent_jobs"]
 
@@ -38,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("health", help="run platform health checks, alert on failure")
     for name, text in (("collect", "snapshot content inventory and usage"), ("backup", "back up content via REST")):
         p = sub.add_parser(name, help=text)
-        p.add_argument("--date", type=date.fromisoformat, default=date.today(), help="snapshot date (YYYY-MM-DD)")
+        p.add_argument("--date", type=date.fromisoformat, default=today(), help="snapshot date (YYYY-MM-DD)")
     sub.add_parser("refresh", help="trigger extract refreshes / cube republishes")
     p = sub.add_parser("report", help="print the monitoring views")
     p.add_argument("--csv", type=Path, metavar="DIR", help="also write each view to DIR as CSV (dashboard source)")
@@ -65,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         wb_id = publish_workbook(s.tableau_url, s.tableau_site, s.tableau_pat_name, s.tableau_pat_secret,
                                  args.workbook, args.project)
         store.add_jobs("publish", [job("tableau", args.workbook.name, True, f"published as {wb_id}")])
-        logging.info("published %s to project %s (%s)", args.workbook.name, args.project, wb_id)
+        log.info("published %s to project %s (%s)", args.workbook.name, args.project, wb_id)
         ok = True
     else:
         for view in REPORT_VIEWS:

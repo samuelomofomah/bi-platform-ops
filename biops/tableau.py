@@ -6,9 +6,9 @@ Auth is a Personal Access Token, which needs REST API 3.6+ (Tableau 2019.4+).
 """
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
-from typing import Iterator
 
 import requests
 
@@ -142,8 +142,7 @@ class TableauClient:
                 ext = ".twbx" if ".twbx" in r.headers.get("Content-Disposition", "") else ".twb"
                 path = dest / f"{safe_name(wb['name'])}_{wb['id'][:8]}{ext}"
                 with open(path, "wb") as fh:
-                    for chunk in r.iter_content(chunk_size=1 << 20):
-                        fh.write(chunk)
+                    fh.writelines(r.iter_content(chunk_size=1 << 20))
                 out.append(job(P, wb["name"], True, "downloaded", str(path)))
             except Exception as exc:  # one bad workbook must not stop the backup
                 out.append(job(P, wb.get("name", wb["id"]), False, f"{type(exc).__name__}: {exc}"))

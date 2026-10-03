@@ -1,0 +1,6 @@
+# BLE001 (blind `except Exception`) is switched off on purpose. Every broad
+# except in this repo sits at an isolation boundary: one health check, one
+# workbook download, one refresh target, one platform. A failure there must be
+# recorded as a failed row and the run must carry on, whatever the cause.
+[lint]
+ignore = ["BLE001"]

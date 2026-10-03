@@ -5,7 +5,8 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Callable
+from collections.abc import Callable
+from datetime import date, datetime, timezone
 
 
 def result(platform: str, name: str, ok: bool, detail: str = "", latency_ms: int = 0) -> dict:
@@ -36,6 +37,11 @@ def job(platform: str, target: str, ok: bool, detail: str = "", path: str = "") 
         "detail": str(detail)[:500],
         "path": path,
     }
+
+
+def today() -> date:
+    """Today in UTC, to match the UTC timestamps the store writes."""
+    return datetime.now(timezone.utc).date()
 
 
 def safe_name(name: str) -> str:

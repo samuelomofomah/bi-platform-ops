@@ -33,7 +33,7 @@ class Settings:
     mstr_refresh_cubes: list[str] = field(default_factory=list)  # "projectId:cubeId"
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         e = os.environ.get
         return cls(
             env=e("BIOPS_ENV", "dev"),
