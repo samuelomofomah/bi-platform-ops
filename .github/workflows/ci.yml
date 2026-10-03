@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check .
+      - run: shellcheck scripts/*.sh
+      - run: python -m unittest -v
+      - name: Smoke test in mock mode
+        env:
+          BIOPS_MOCK: "1"
+          BIOPS_DB: smoke.db
+        run: |
+          python -m biops health
+          python -m biops collect
+          python -m biops backup
+          python -m biops report
+      - run: docker build -t bi-platform-ops:${{ github.sha }} .
+
+  # BI content as code: anything merged to main under workbooks/ is published
+  # to Tableau. The "prod" environment can require a reviewer's approval.
+  promote:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest   # use a self-hosted runner if Tableau is not reachable from the internet
+    environment: prod
+    env:
+      TABLEAU_URL: ${{ secrets.TABLEAU_URL }}
+      TABLEAU_SITE: ${{ vars.TABLEAU_SITE }}
+      TABLEAU_PAT_NAME: ${{ secrets.TABLEAU_PAT_NAME }}
+      TABLEAU_PAT_SECRET: ${{ secrets.TABLEAU_PAT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Publish workbooks
+        run: |
+          shopt -s nullglob
+          for wb in workbooks/*.twb workbooks/*.twbx; do
+            python -m biops publish "$wb" --project "${{ vars.TABLEAU_PROJECT }}"
+          done
