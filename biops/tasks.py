@@ -25,7 +25,7 @@ def build_clients(s: Settings) -> list:
             TableauClient(s.tableau_url, s.tableau_site, s.tableau_pat_name, s.tableau_pat_secret, s.tableau_backup_project)
         )
     if s.mstr_url:
-        clients.append(MstrClient(s.mstr_url, s.mstr_user, s.mstr_password, s.mstr_login_mode))
+        clients.append(MstrClient(s.mstr_url, s.mstr_user, s.mstr_password, s.mstr_login_mode, s.mstr_cluster_check))
     if not clients:
         raise SystemExit("Nothing to do: set TABLEAU_URL and/or MSTR_URL, or BIOPS_MOCK=1 for a dry run.")
     return clients

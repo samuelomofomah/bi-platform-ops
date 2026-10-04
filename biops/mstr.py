@@ -23,9 +23,10 @@ OBJECT_TYPES = {3: "report", 55: "dossier"}  # 3 = reports and cubes, 55 = docum
 class MstrClient:
     platform = P
 
-    def __init__(self, url, user, password, login_mode=1, timeout=30, session=None):
+    def __init__(self, url, user, password, login_mode=1, cluster_check=True, timeout=30, session=None):
         self.base = url.rstrip("/")
         self.user, self.password, self.login_mode = user, password, login_mode
+        self.cluster_check = cluster_check
         self.timeout = timeout
         self.http = session or requests.Session()
         self.http.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
@@ -83,7 +84,7 @@ class MstrClient:
             return f"logged in as {self.user or 'guest'}"
 
         checks = [timed_check(P, "library_reachable", reachable), timed_check(P, "login", login)]
-        if checks[-1]["status"] != "ok":
+        if checks[-1]["status"] != "ok" or not self.cluster_check:
             return checks
         try:  # cluster view: is every node running and every project loaded on it?
             nodes = self._get("/api/monitors/iServer/nodes").get("nodes", [])

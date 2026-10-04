@@ -12,7 +12,6 @@ on:
         default: all
 
 permissions:
-  id-token: write              # lets the job assume an AWS role through OIDC, no stored keys
   contents: read
 
 jobs:
@@ -20,13 +19,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        env: [dev, prod]
-    environment: ${{ matrix.env }}          # each environment holds its own secrets
+        env: [dev]                          # add qa / prod here, each with its own GitHub environment
+    environment: ${{ matrix.env }}          # each environment holds its own secrets and variables
     runs-on: [self-hosted, linux, bi-ops]   # inside the network, next to the BI servers
     env:
       BIOPS_ENV: ${{ matrix.env }}
-      BIOPS_DB: /var/lib/biops/biops.db     # persistent path on the runner
+      BIOPS_DB: /var/lib/biops/biops.db     # persistent path on the runner, so history survives between runs
       BIOPS_BACKUP_DIR: /var/lib/biops/backups
+      AWS_DEFAULT_REGION: ca-central-1      # AWS access comes from the runner's instance role: no keys stored
       BIOPS_S3_BUCKET: ${{ vars.BIOPS_S3_BUCKET }}
       BIOPS_SNS_TOPIC_ARN: ${{ vars.BIOPS_SNS_TOPIC_ARN }}
       TABLEAU_URL: ${{ secrets.TABLEAU_URL }}
@@ -37,30 +37,28 @@ jobs:
       MSTR_URL: ${{ secrets.MSTR_URL }}
       MSTR_USER: ${{ secrets.MSTR_USER }}
       MSTR_PASSWORD: ${{ secrets.MSTR_PASSWORD }}
+      MSTR_LOGIN_MODE: ${{ vars.MSTR_LOGIN_MODE }}
+      MSTR_CLUSTER_CHECK: ${{ vars.MSTR_CLUSTER_CHECK }}
       MSTR_REFRESH_CUBES: ${{ vars.MSTR_REFRESH_CUBES }}
       TASK: ${{ inputs.task || 'all' }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - run: pip install -r requirements.txt
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
-          aws-region: ca-central-1
+      - name: Install dependencies
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -q -r requirements.txt
       - name: Host health
         if: env.TASK == 'all' || env.TASK == 'health'
         run: ./scripts/linux_health.sh
       - name: Platform health
         if: env.TASK == 'all' || env.TASK == 'health'
-        run: python -m biops health
+        run: .venv/bin/python -m biops health
       - name: Collect inventory and usage
         if: env.TASK == 'all' || env.TASK == 'collect'
-        run: python -m biops collect
+        run: .venv/bin/python -m biops collect
       - name: Backup
         if: env.TASK == 'all' || env.TASK == 'backup'
-        run: python -m biops backup
+        run: .venv/bin/python -m biops backup
       - name: Refresh
         if: env.TASK == 'all' || env.TASK == 'refresh'
-        run: python -m biops refresh
+        run: .venv/bin/python -m biops refresh

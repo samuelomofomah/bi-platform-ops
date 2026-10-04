@@ -30,6 +30,7 @@ class Settings:
     mstr_user: str = ""
     mstr_password: str = ""
     mstr_login_mode: int = 1  # 1 = standard, 16 = LDAP, 8 = guest
+    mstr_cluster_check: bool = True  # needs an administrator privilege; set MSTR_CLUSTER_CHECK=0 to skip
     mstr_refresh_cubes: list[str] = field(default_factory=list)  # "projectId:cubeId"
 
     @classmethod
@@ -51,6 +52,7 @@ class Settings:
             mstr_url=e("MSTR_URL", ""),
             mstr_user=e("MSTR_USER", ""),
             mstr_password=e("MSTR_PASSWORD", ""),
-            mstr_login_mode=int(e("MSTR_LOGIN_MODE", "1")),
+            mstr_login_mode=int(e("MSTR_LOGIN_MODE") or 1),
+            mstr_cluster_check=e("MSTR_CLUSTER_CHECK", "") not in ("0", "false"),
             mstr_refresh_cubes=_list("MSTR_REFRESH_CUBES"),
         )

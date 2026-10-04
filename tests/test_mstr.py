@@ -43,6 +43,12 @@ class MstrClientTest(unittest.TestCase):
         client, _ = self.client({("GET", "/api/status"): FakeResponse({"isIServerConfigured": False})})
         self.assertEqual(client.health()[0]["status"], "fail")
 
+    def test_cluster_check_can_be_switched_off(self):
+        client, session = self.client()  # no monitor route: calling it would 404 and fail
+        client.cluster_check = False
+        self.assertEqual([c["status"] for c in client.health()], ["ok", "ok"])
+        self.assertFalse(any("/api/monitors/" in url for _, url, _ in session.calls))
+
     def test_health_stops_after_failed_login(self):
         client, _ = self.client({("POST", "/api/auth/login"): FakeResponse(status=401)})
         self.assertEqual([c["status"] for c in client.health()], ["ok", "fail"])
