@@ -19,7 +19,7 @@ def search(kwargs):
 
 class MstrClientTest(unittest.TestCase):
     def client(self, extra=None):
-        routes = {("GET", "/api/status"): FakeResponse({"iServerVersion": "11.5.0"}),
+        routes = {("GET", "/api/status"): FakeResponse({"upTimeText": "184 Hours 48 Minutes", "isIServerConfigured": True}),
                   ("POST", "/api/auth/login"): LOGIN, ("POST", "/api/auth/logout"): FakeResponse(status=204)}
         session = FakeSession({**routes, **(extra or {})})
         return MstrClient("https://mstr.example.com/MicroStrategyLibrary", "svc", "pw", session=session), session
@@ -31,6 +31,17 @@ class MstrClientTest(unittest.TestCase):
         self.assertEqual(checks["node:node1"], "ok")
         self.assertEqual(checks["project:Enterprise@node1"], "ok")
         self.assertEqual(checks["project:Marketing@node1"], "fail")
+
+    def test_health_reports_uptime_and_guest_login(self):
+        client, _ = self.client({("GET", "/api/monitors/iServer/nodes"): NODES})
+        client.user = ""
+        details = {c["check_name"]: c["detail"] for c in client.health()}
+        self.assertEqual(details["library_reachable"], "up 184 Hours 48 Minutes")
+        self.assertEqual(details["login"], "logged in as guest")
+
+    def test_health_fails_when_no_intelligence_server_is_configured(self):
+        client, _ = self.client({("GET", "/api/status"): FakeResponse({"isIServerConfigured": False})})
+        self.assertEqual(client.health()[0]["status"], "fail")
 
     def test_health_stops_after_failed_login(self):
         client, _ = self.client({("POST", "/api/auth/login"): FakeResponse(status=401)})

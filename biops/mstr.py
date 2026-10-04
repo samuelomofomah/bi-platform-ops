@@ -72,11 +72,15 @@ class MstrClient:
     # --- the five operations ------------------------------------------------
     def health(self) -> list[dict]:
         def reachable() -> str:
-            return "iServer " + str(self._get("/api/status").get("iServerVersion", "unknown"))
+            # /api/status reports uptime and whether Library has an Intelligence Server behind it.
+            status = self._get("/api/status")
+            if not status.get("isIServerConfigured", True):
+                raise RuntimeError("Library is up but no Intelligence Server is configured")
+            return "up " + str(status.get("upTimeText", "(uptime not reported)"))
 
         def login() -> str:
             self.connect()
-            return f"logged in as {self.user}"
+            return f"logged in as {self.user or 'guest'}"
 
         checks = [timed_check(P, "library_reachable", reachable), timed_check(P, "login", login)]
         if checks[-1]["status"] != "ok":
