@@ -1,6 +1,13 @@
-// CI on every commit; the nightly ops run fires from the cron trigger or
-// when RUN_OPS is ticked. Credentials are looked up per environment, so the
-// same pipeline serves dev, QA and prod.
+// CI on every build. Tick RUN_OPS to also run health, collect, backup and
+// refresh against the chosen environment.
+//
+// GitHub Actions owns the nightly schedule, so this job has no timer: two
+// schedulers would double every alert and every refresh.
+//
+// Jenkins credentials used (one pair per environment):
+//   tableau-pat-<env>   "Username with password": PAT name / PAT secret
+//   biops-env-<env>     "Secret file": KEY=value lines for everything else
+//                       (TABLEAU_URL, TABLEAU_SITE, MSTR_URL, BIOPS_S3_BUCKET, ...)
 pipeline {
   agent any
   options {
@@ -8,7 +15,6 @@ pipeline {
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '30'))
   }
-  triggers { cron('H 2 * * *') }   // timer runs use the first TARGET_ENV choice; use one job per environment in practice
   parameters {
     choice(name: 'TARGET_ENV', choices: ['dev', 'qa', 'prod'], description: 'BI environment to operate on')
     booleanParam(name: 'RUN_OPS', defaultValue: false, description: 'Run health, collect, backup and refresh now')
@@ -48,29 +54,34 @@ pipeline {
       steps { sh 'docker build -t "$IMAGE" .' }
     }
 
-    stage('Nightly ops') {
-      when { anyOf { triggeredBy 'TimerTrigger'; expression { return params.RUN_OPS } } }
+    stage('Ops run') {
+      when { expression { return params.RUN_OPS } }
       environment {
-        BIOPS_ENV    = "${params.TARGET_ENV}"
-        TABLEAU_URL  = credentials("tableau-url-${params.TARGET_ENV}")
-        MSTR_URL     = credentials("mstr-url-${params.TARGET_ENV}")
-        TABLEAU_PAT  = credentials("tableau-pat-${params.TARGET_ENV}")   // username/password -> _USR / _PSW
-        MSTR_SVC     = credentials("mstr-svc-${params.TARGET_ENV}")
+        BIOPS_ENV = "${params.TARGET_ENV}"
       }
       steps {
-        sh '''
-          run() {
-            docker run --rm -v biops-data:/data \
-              -e BIOPS_ENV -e TABLEAU_URL -e MSTR_URL \
-              -e TABLEAU_PAT_NAME="$TABLEAU_PAT_USR" -e TABLEAU_PAT_SECRET="$TABLEAU_PAT_PSW" \
-              -e MSTR_USER="$MSTR_SVC_USR" -e MSTR_PASSWORD="$MSTR_SVC_PSW" \
-              "$IMAGE" "$@"
-          }
-          run health      # fails the build (and alerts) before anything else runs
-          run collect
-          run backup
-          run refresh
-        '''
+        withCredentials([
+          file(credentialsId: "biops-env-${params.TARGET_ENV}", variable: 'BIOPS_ENV_FILE'),
+          usernamePassword(credentialsId: "tableau-pat-${params.TARGET_ENV}",
+                           usernameVariable: 'TABLEAU_PAT_NAME', passwordVariable: 'TABLEAU_PAT_SECRET')
+        ]) {
+          sh '''
+            run() {
+              # --network host lets the container pick up the instance role for S3 and SNS.
+              # The named volume keeps the database and backups between builds.
+              docker run --rm --network host -v biops-data:/data \
+                --env-file "$BIOPS_ENV_FILE" \
+                -e BIOPS_ENV -e TABLEAU_PAT_NAME -e TABLEAU_PAT_SECRET \
+                "$IMAGE" "$@"
+            }
+            status=0
+            run health  || status=1   # a failed check alerts and turns the build red...
+            run collect || status=1   # ...but whatever is reachable is still collected and backed up
+            run backup  || status=1
+            run refresh || status=1
+            exit $status
+          '''
+        }
       }
     }
   }

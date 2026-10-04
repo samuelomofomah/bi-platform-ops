@@ -44,21 +44,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install dependencies
+        id: deps
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -q -r requirements.txt
+      # Every step below runs even if an earlier one failed. A platform that is
+      # down still turns the run red and sends an alert, but it no longer stops
+      # the other platform from being collected and backed up.
       - name: Host health
-        if: env.TASK == 'all' || env.TASK == 'health'
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' && (env.TASK == 'all' || env.TASK == 'health') }}
         run: ./scripts/linux_health.sh
       - name: Platform health
-        if: env.TASK == 'all' || env.TASK == 'health'
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' && (env.TASK == 'all' || env.TASK == 'health') }}
         run: .venv/bin/python -m biops health
       - name: Collect inventory and usage
-        if: env.TASK == 'all' || env.TASK == 'collect'
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' && (env.TASK == 'all' || env.TASK == 'collect') }}
         run: .venv/bin/python -m biops collect
       - name: Backup
-        if: env.TASK == 'all' || env.TASK == 'backup'
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' && (env.TASK == 'all' || env.TASK == 'backup') }}
         run: .venv/bin/python -m biops backup
       - name: Refresh
-        if: env.TASK == 'all' || env.TASK == 'refresh'
+        if: ${{ !cancelled() && steps.deps.outcome == 'success' && (env.TASK == 'all' || env.TASK == 'refresh') }}
         run: .venv/bin/python -m biops refresh
